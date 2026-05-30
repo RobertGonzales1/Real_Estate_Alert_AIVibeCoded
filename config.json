@@ -1,0 +1,26 @@
+{
+  "searches": [
+    {
+      "city": "Dallas",
+      "state": "TX",
+      "lat": 32.7767,
+      "lng": -96.7970,
+      "radius_miles": 50
+    },
+    {
+      "city": "Las Vegas",
+      "state": "NV",
+      "lat": 36.1699,
+      "lng": -115.1398,
+      "radius_miles": 50
+    }
+  ],
+  "filters": {
+    "max_price": 250000,
+    "min_beds": 2,
+    "min_baths": 2,
+    "property_type": "condo",
+    "min_sqft": 1000
+  },
+  "alert_email": "ericgonzalretired@gmail.com"
+}
