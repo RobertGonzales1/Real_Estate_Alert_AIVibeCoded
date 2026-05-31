@@ -1,113 +1,120 @@
-import cloudscraper
-import json
-import math
-import time
-import urllib.parse
+"""
+Zillow scraper via RapidAPI (zillow-com1.p.rapidapi.com).
+Requires RAPIDAPI_KEY environment variable.
+Sign up free at: https://rapidapi.com/apimaker/api/zillow-com1
+"""
 
-# Zillow filter state keys for property types
-# con=condo, sf=single-family, tow=townhouse, mf=multi-family
-PROPERTY_TYPE_FILTERS = {
-    "condo":     {"con": True,  "sf": False, "tow": False, "mf": False, "land": False, "apa": False},
-    "house":     {"con": False, "sf": True,  "tow": False, "mf": False, "land": False, "apa": False},
-    "townhouse": {"con": False, "sf": False, "tow": True,  "mf": False, "land": False, "apa": False},
-    "any":       {"con": True,  "sf": True,  "tow": True,  "mf": False, "land": False, "apa": False},
+import requests
+import os
+import time
+
+RAPIDAPI_HOST = "zillow-com1.p.rapidapi.com"
+
+# Zillow home_type values
+PROPERTY_TYPE_MAP = {
+    "condo":     "Condo",
+    "house":     "Houses",
+    "townhouse": "Townhomes",
+    "any":       "Condo,Houses,Townhomes,MultiFamily",
 }
 
 
-def _bounding_box(lat, lng, radius_miles):
-    lat_delta = radius_miles / 69.0
-    lng_delta = radius_miles / (69.0 * math.cos(math.radians(lat)))
-    return {
-        "west": round(lng - lng_delta, 6),
-        "east": round(lng + lng_delta, 6),
-        "south": round(lat - lat_delta, 6),
-        "north": round(lat + lat_delta, 6),
-    }
-
-
 def search(city, state, lat, lng, radius_miles, filters):
-    bounds = _bounding_box(lat, lng, radius_miles)
-    prop_type = filters.get("property_type", "condo")
-    type_flags = PROPERTY_TYPE_FILTERS.get(prop_type, PROPERTY_TYPE_FILTERS["condo"])
+    api_key = os.environ.get("RAPIDAPI_KEY", "")
+    if not api_key:
+        raise ValueError("RAPIDAPI_KEY environment variable not set")
 
-    include_foreclosures = filters.get("include_foreclosures", False)
+    prop_type = PROPERTY_TYPE_MAP.get(filters.get("property_type", "condo"), "Condo")
+    location = f"{city}, {state}"
 
-    filter_state = {
-        "price": {"max": filters["max_price"]},
-        "beds":  {"min": filters["min_beds"]},
-        "baths": {"min": filters["min_baths"]},
-        "sqft":  {"min": filters.get("min_sqft", 0)},
-        "sort":  {"value": "days"},
-        "fsbo":  {"value": False},
-        "cmsn":  {"value": False},
-        "fore":  {"value": include_foreclosures},  # bank-owned / foreclosures
-        "auc":   {"value": include_foreclosures},  # auction listings
-        "pmf":   {"value": False},
-        "pf":    {"value": False},
-        "nc":    {"value": False},
-    }
-    for k, v in type_flags.items():
-        filter_state[k] = {"value": v}
-
-    search_query = {
-        "pagination": {},
-        "isMapVisible": True,
-        "mapBounds": bounds,
-        "filterState": filter_state,
-        "isListVisible": True,
-        "mapZoom": 9,
+    headers = {
+        "X-RapidAPI-Key": api_key,
+        "X-RapidAPI-Host": RAPIDAPI_HOST,
     }
 
-    url = "https://www.zillow.com/search/GetSearchPageState.htm"
     params = {
-        "searchQueryState": json.dumps(search_query, separators=(",", ":")),
-        "wants": json.dumps({"cat1": ["listResults", "mapResults"]}),
-        "requestId": 1,
+        "location":    location,
+        "status_type": "ForSale",
+        "home_type":   prop_type,
+        "maxPrice":    filters["max_price"],
+        "bedsMin":     filters["min_beds"],
+        "bathsMin":    filters["min_baths"],
+        "sqftMin":     filters.get("min_sqft", 0),
+        "sort":        "Newest",
     }
 
-    scraper = cloudscraper.create_scraper(browser={"browser": "chrome", "platform": "windows"})
-    time.sleep(2)  # polite delay
-    resp = scraper.get(url, params=params, timeout=20)
+    time.sleep(1)
+    resp = requests.get(
+        f"https://{RAPIDAPI_HOST}/propertyExtendedSearch",
+        headers=headers,
+        params=params,
+        timeout=20,
+    )
     resp.raise_for_status()
     data = resp.json()
 
-    return _parse_listings(data)
+    listings = _parse_listings(data)
+
+    # Also search foreclosures separately if requested
+    if filters.get("include_foreclosures"):
+        time.sleep(1)
+        params_fore = dict(params)
+        params_fore["status_type"] = "ForSale"
+        params_fore["isForeclosure"] = "true"
+        try:
+            resp2 = requests.get(
+                f"https://{RAPIDAPI_HOST}/propertyExtendedSearch",
+                headers=headers,
+                params=params_fore,
+                timeout=20,
+            )
+            resp2.raise_for_status()
+            fore_listings = _parse_listings(resp2.json(), listing_type="Foreclosure")
+            # merge, avoiding duplicates
+            seen_ids = {L["id"] for L in listings}
+            for L in fore_listings:
+                if L["id"] not in seen_ids:
+                    listings.append(L)
+        except Exception as e:
+            print(f"  [Zillow] Foreclosure search error: {e}")
+
+    return listings
 
 
-def _parse_listings(data):
+def _parse_listings(data, listing_type=None):
     listings = []
-    results = (
-        data.get("cat1", {})
-            .get("searchResults", {})
-            .get("listResults", [])
-    )
-    for home in results:
+    props = data.get("props", [])
+    if not props:
+        props = data.get("results", [])
+
+    for home in props:
         zpid = home.get("zpid")
         if not zpid:
             continue
 
-        price_raw = home.get("unformattedPrice") or home.get("price", "0")
-        try:
-            price = int(str(price_raw).replace(",", "").replace("$", "").strip())
-        except (ValueError, TypeError):
-            price = 0
+        price = home.get("price", 0)
+        if isinstance(price, str):
+            try:
+                price = int(price.replace(",", "").replace("$", "").strip())
+            except ValueError:
+                price = 0
 
-        beds = home.get("beds", 0)
-        baths = home.get("baths", 0)
-        area = home.get("area", 0)
-        address = home.get("address", "")
         detail_url = home.get("detailUrl", "")
         if detail_url and not detail_url.startswith("http"):
             detail_url = f"https://www.zillow.com{detail_url}"
 
-        listings.append({
-            "id": f"zillow_{zpid}",
-            "price": price,
-            "beds": beds,
-            "baths": baths,
-            "sqft": area,
-            "address": address,
-            "url": detail_url,
-            "source": "Zillow",
-        })
+        entry = {
+            "id":      f"zillow_{zpid}",
+            "price":   price,
+            "beds":    home.get("bedrooms", 0),
+            "baths":   home.get("bathrooms", 0),
+            "sqft":    home.get("livingArea", 0),
+            "address": home.get("address", ""),
+            "url":     detail_url,
+            "source":  "Zillow",
+        }
+        if listing_type:
+            entry["listing_type"] = listing_type
+        listings.append(entry)
+
     return listings
