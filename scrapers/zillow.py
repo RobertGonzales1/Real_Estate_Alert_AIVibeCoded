@@ -55,6 +55,13 @@ def search(city, state, lat, lng, radius_miles, filters):
     )
     resp.raise_for_status()
     data = resp.json()
+    # Debug: show top-level keys and result count so we can verify structure
+    print(f"  [US Real Estate API] Response keys: {list(data.keys())}")
+    inner = data.get("data", data)
+    if isinstance(inner, dict):
+        print(f"  [US Real Estate API] Inner keys: {list(inner.keys())}")
+        results_preview = inner.get("results", inner.get("properties", []))
+        print(f"  [US Real Estate API] Raw result count: {len(results_preview)}")
     listings = _parse_listings(data)
 
     # Foreclosure pass

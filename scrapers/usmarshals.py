@@ -24,10 +24,14 @@ USMS_URL = "https://www.usmarshals.gov/what-we-do/asset-forfeiture/real-property
 
 def search(city, state, lat, lng, radius_miles, filters):
     """
-    Scrape USMS real property listings and filter by state + price.
-    USMS doesn't have a structured search API, so we scrape the listing page
-    and filter locally.
+    USMS blocks all cloud/datacenter IPs with 403. Skipping silently.
+    Their listings are sparse and rarely match residential condo criteria.
+    Check manually at: https://www.usmarshals.gov/what-we-do/asset-forfeiture/real-property
     """
+    print(f"  [US Marshals] Skipping — site blocks cloud runners. Check manually if needed.")
+    return []
+
+    # Dead code below kept for reference if running locally
     time.sleep(1)
     try:
         resp = requests.get(USMS_URL, headers=HEADERS, timeout=20)

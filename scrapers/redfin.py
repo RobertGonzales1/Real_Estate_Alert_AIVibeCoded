@@ -113,8 +113,14 @@ def search(city, state, lat, lng, radius_miles, filters):
 
 def _parse_listings(data, city, state):
     listings = []
-    homes = data.get("payload", {}).get("homes", [])
+    payload = data.get("payload", {})
+    if not isinstance(payload, dict):
+        print(f"  [Redfin] Unexpected payload type: {type(payload)} — {str(payload)[:200]}")
+        return listings
+    homes = payload.get("homes", [])
     for home in homes:
+        if not isinstance(home, dict):
+            continue
         mls_id = (home.get("mlsId") or {}).get("value")
         listing_id = (home.get("listingId") or {}).get("value")
         uid = mls_id or listing_id or home.get("propertyId")
