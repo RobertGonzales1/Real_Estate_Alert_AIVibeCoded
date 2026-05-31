@@ -34,9 +34,11 @@ API_HEADERS = {
 }
 
 # Hardcoded region IDs — avoids the autocomplete call that gets blocked
+# region_type 6 = city, region_type 2 = county, region_type 5 = zip
+# Verify via: https://www.redfin.com/TX/Dallas → URL contains city ID
 KNOWN_REGIONS = {
-    "dallas_tx":     {"region_id": "19673", "region_type": "6"},
-    "las_vegas_nv":  {"region_id": "30172", "region_type": "6"},
+    "dallas_tx":     {"region_id": "30772", "region_type": "6"},
+    "las_vegas_nv":  {"region_id": "10468", "region_type": "6"},
 }
 
 PROPERTY_TYPES = {

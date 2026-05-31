@@ -29,6 +29,33 @@ def save_seen(seen):
     SEEN_FILE.write_text(json.dumps(sorted(seen), indent=2))
 
 
+def matches_filters(listing, filters, search_city, search_state):
+    """Hard client-side check — rejects anything the API let through that doesn't match."""
+    price  = listing.get("price", 0) or 0
+    beds   = listing.get("beds",  0) or 0
+    baths  = listing.get("baths", 0) or 0
+    sqft   = listing.get("sqft",  0) or 0
+    addr   = (listing.get("address") or "").upper()
+
+    # Price must be > 0 and within budget
+    if price <= 0 or price > filters["max_price"]:
+        return False
+    # Beds and baths (only reject if the listing reports a non-zero value that's too low)
+    if beds  > 0 and beds  < filters["min_beds"]:
+        return False
+    if baths > 0 and baths < filters["min_baths"]:
+        return False
+    # Sqft (only reject if reported and too small)
+    if sqft > 0 and filters.get("min_sqft") and sqft < filters["min_sqft"]:
+        return False
+    # Address must contain the correct state abbreviation
+    state_upper = search_state.upper()
+    if state_upper not in addr:
+        return False
+
+    return True
+
+
 def run_search(search_config, filters):
     city = search_config["city"]
     state = search_config["state"]
@@ -99,10 +126,15 @@ def main():
         print(f"\nSearching {search_cfg['city']}, {search_cfg['state']}...")
         all_found = run_search(search_cfg, filters)
 
+        city  = search_cfg["city"]
+        state = search_cfg["state"]
         for listing in all_found:
             if listing["id"] not in seen:
                 seen.add(listing["id"])
-                new_listings.append(listing)
+                if matches_filters(listing, filters, city, state):
+                    new_listings.append(listing)
+                else:
+                    print(f"  [Filter] Skipped: {listing.get('address')} | ${listing.get('price')} | {listing.get('beds')}bd {listing.get('baths')}ba {listing.get('sqft')}sqft")
 
     print(f"\n{len(new_listings)} new listing(s) found across all sources.")
 
