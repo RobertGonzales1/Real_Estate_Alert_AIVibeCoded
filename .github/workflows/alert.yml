@@ -2,7 +2,7 @@ name: Real Estate Alert
 
 on:
   schedule:
-    - cron: "0 */4 * * *"
+    - cron: "0 */8 * * *"   # 3x/day × 2 cities = ~180 calls/month (limit: 300)
   workflow_dispatch:
 
 jobs:
