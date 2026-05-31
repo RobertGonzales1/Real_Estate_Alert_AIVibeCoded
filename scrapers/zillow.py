@@ -91,10 +91,14 @@ def search(city, state, lat, lng, radius_miles, filters):
 def _parse_listings(data, listing_type=None):
     listings = []
 
-    # Response structure: data -> results -> list of properties
-    results = data.get("data", {}).get("results", [])
+    # Response structure: data -> home_search -> results
+    results = data.get("data", {}).get("home_search", {}).get("results", [])
     if not results:
-        results = data.get("results", [])
+        # fallback paths
+        results = (
+            data.get("data", {}).get("results", [])
+            or data.get("results", [])
+        )
 
     for home in results:
         prop_id = home.get("property_id") or home.get("zpid")

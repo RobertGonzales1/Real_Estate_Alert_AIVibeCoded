@@ -47,6 +47,15 @@ PROPERTY_TYPES = {
 }
 
 
+def _val(field, default=None):
+    """Safely extract a value from a Redfin field that may be a dict {value: x} or a plain scalar."""
+    if field is None:
+        return default
+    if isinstance(field, dict):
+        return field.get("value", default)
+    return field  # already a plain int/str
+
+
 def _parse_response(text):
     if text.startswith("{}&&"):
         text = text[4:]
@@ -121,15 +130,15 @@ def _parse_listings(data, city, state):
     for home in homes:
         if not isinstance(home, dict):
             continue
-        mls_id = (home.get("mlsId") or {}).get("value")
-        listing_id = (home.get("listingId") or {}).get("value")
+        mls_id    = _val(home.get("mlsId"))
+        listing_id = _val(home.get("listingId"))
         uid = mls_id or listing_id or home.get("propertyId")
         if not uid:
             continue
 
-        price = (home.get("price") or {}).get("value", 0)
-        sqft = (home.get("sqFt") or {}).get("value", 0)
-        address = (home.get("streetLine") or {}).get("value", "")
+        price   = _val(home.get("price"),      0)
+        sqft    = _val(home.get("sqFt"),       0)
+        address = _val(home.get("streetLine"), "")
         home_city = home.get("city", city)
         home_state = home.get("state", state)
         home_zip = home.get("zip", "")
