@@ -30,6 +30,8 @@ def search(city, state, lat, lng, radius_miles, filters):
     prop_type = filters.get("property_type", "condo")
     type_flags = PROPERTY_TYPE_FILTERS.get(prop_type, PROPERTY_TYPE_FILTERS["condo"])
 
+    include_foreclosures = filters.get("include_foreclosures", False)
+
     filter_state = {
         "price": {"max": filters["max_price"]},
         "beds":  {"min": filters["min_beds"]},
@@ -38,8 +40,8 @@ def search(city, state, lat, lng, radius_miles, filters):
         "sort":  {"value": "days"},
         "fsbo":  {"value": False},
         "cmsn":  {"value": False},
-        "fore":  {"value": False},
-        "auc":   {"value": False},
+        "fore":  {"value": include_foreclosures},  # bank-owned / foreclosures
+        "auc":   {"value": include_foreclosures},  # auction listings
         "pmf":   {"value": False},
         "pf":    {"value": False},
         "nc":    {"value": False},

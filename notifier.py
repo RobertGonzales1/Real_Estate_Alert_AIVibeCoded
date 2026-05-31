@@ -10,12 +10,18 @@ def _format_price(price):
 def _build_html(listings):
     rows = ""
     for L in listings:
+        listing_type = L.get("listing_type", "")
+        badge = ""
+        if listing_type:
+            color = "#b71c1c" if "Forfeiture" in listing_type else "#e65100"
+            badge = f' &nbsp;<span style="background:{color};color:#fff;font-size:10px;padding:2px 6px;border-radius:3px;">{listing_type}</span>'
+
         rows += f"""
         <tr style="border-bottom:1px solid #e0e0e0;">
           <td style="padding:12px 8px;">
             <a href="{L['url']}" style="color:#1a73e8;font-weight:600;text-decoration:none;">
               {L['address']}
-            </a><br>
+            </a>{badge}<br>
             <span style="font-size:12px;color:#666;">{L['source']} &bull; {L.get('search_area','')}</span>
           </td>
           <td style="padding:12px 8px;font-weight:700;color:#2e7d32;white-space:nowrap;">
@@ -47,7 +53,7 @@ def _build_html(listings):
       </table>
       <p style="margin-top:24px;font-size:12px;color:#999;">
         Searching Dallas, TX and Las Vegas, NV within 50 miles &bull;
-        Sources: Redfin, Zillow
+        Sources: Redfin, Zillow, HUD Homestore, US Marshals
       </p>
     </body></html>
     """

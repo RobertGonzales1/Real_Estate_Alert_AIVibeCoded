@@ -60,6 +60,11 @@ def search(city, state, lat, lng, radius_miles, filters):
 
     uipt = PROPERTY_TYPES.get(filters.get("property_type", "condo"), "2")
 
+    # Redfin listing type codes: 1=MLS, 2=FSBO, 4=foreclosure, 8=auction
+    listing_types = "1"
+    if filters.get("include_foreclosures"):
+        listing_types = "1,4,8"  # add foreclosure + auction types
+
     params = {
         "al": 1,
         "min_beds": filters["min_beds"],
@@ -73,6 +78,7 @@ def search(city, state, lat, lng, radius_miles, filters):
         "start": 0,
         "count": 350,
         "status": 9,  # for-sale only
+        "listing_type": listing_types,
     }
     if filters.get("min_sqft"):
         params["min_sqft"] = filters["min_sqft"]

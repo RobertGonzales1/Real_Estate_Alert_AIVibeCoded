@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-from scrapers import redfin, zillow
+from scrapers import redfin, zillow, hud, usmarshals
 from notifier import send_alert_email
 
 load_dotenv()
@@ -58,6 +58,27 @@ def run_search(search_config, filters):
         found.extend(listings)
     except Exception as e:
         print(f"  [Zillow] ERROR: {e}")
+
+    if filters.get("include_asset_forfeitures"):
+        print(f"  [HUD] Searching {area_label}...")
+        try:
+            listings = hud.search(city, state, lat, lng, radius, filters)
+            print(f"  [HUD] {len(listings)} listings returned.")
+            for L in listings:
+                L["search_area"] = area_label
+            found.extend(listings)
+        except Exception as e:
+            print(f"  [HUD] ERROR: {e}")
+
+        print(f"  [US Marshals] Searching {state}...")
+        try:
+            listings = usmarshals.search(city, state, lat, lng, radius, filters)
+            print(f"  [US Marshals] {len(listings)} listings returned.")
+            for L in listings:
+                L["search_area"] = area_label
+            found.extend(listings)
+        except Exception as e:
+            print(f"  [US Marshals] ERROR: {e}")
 
     return found
 
