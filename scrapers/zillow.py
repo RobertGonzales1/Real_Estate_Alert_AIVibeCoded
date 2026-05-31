@@ -1,21 +1,20 @@
 """
-Zillow scraper via RapidAPI (zillow-com1.p.rapidapi.com).
+US Real Estate API via RapidAPI (us-real-estate.p.rapidapi.com).
 Requires RAPIDAPI_KEY environment variable.
-Sign up free at: https://rapidapi.com/apimaker/api/zillow-com1
+Sign up free at: https://rapidapi.com/datascraper/api/us-real-estate
 """
 
 import requests
 import os
 import time
 
-RAPIDAPI_HOST = "zillow-com1.p.rapidapi.com"
+RAPIDAPI_HOST = "us-real-estate.p.rapidapi.com"
 
-# Zillow home_type values
 PROPERTY_TYPE_MAP = {
-    "condo":     "Condo",
-    "house":     "Houses",
-    "townhouse": "Townhomes",
-    "any":       "Condo,Houses,Townhomes,MultiFamily",
+    "condo":     "condos",
+    "house":     "single_family",
+    "townhouse": "townhomes",
+    "any":       "",
 }
 
 
@@ -24,94 +23,116 @@ def search(city, state, lat, lng, radius_miles, filters):
     if not api_key:
         raise ValueError("RAPIDAPI_KEY environment variable not set")
 
-    prop_type = PROPERTY_TYPE_MAP.get(filters.get("property_type", "condo"), "Condo")
-    location = f"{city}, {state}"
-
     headers = {
-        "X-RapidAPI-Key": api_key,
-        "X-RapidAPI-Host": RAPIDAPI_HOST,
+        "x-rapidapi-key":  api_key,
+        "x-rapidapi-host": RAPIDAPI_HOST,
+        "Content-Type":    "application/json",
     }
+
+    prop_type = PROPERTY_TYPE_MAP.get(filters.get("property_type", "condo"), "condos")
 
     params = {
-        "location":    location,
-        "status_type": "ForSale",
-        "home_type":   prop_type,
-        "maxPrice":    filters["max_price"],
-        "bedsMin":     filters["min_beds"],
-        "bathsMin":    filters["min_baths"],
-        "sqftMin":     filters.get("min_sqft", 0),
-        "sort":        "Newest",
+        "state_code": state,
+        "city":       city,
+        "sort":       "newest",
+        "offset":     0,
+        "limit":      200,
+        "price_max":  filters["max_price"],
+        "beds_min":   filters["min_beds"],
+        "baths_min":  filters["min_baths"],
     }
+    if filters.get("min_sqft"):
+        params["sqft_min"] = filters["min_sqft"]
+    if prop_type:
+        params["home_type"] = prop_type
 
     time.sleep(1)
     resp = requests.get(
-        f"https://{RAPIDAPI_HOST}/propertyExtendedSearch",
+        f"https://{RAPIDAPI_HOST}/v3/for-sale",
         headers=headers,
         params=params,
         timeout=20,
     )
     resp.raise_for_status()
     data = resp.json()
-
     listings = _parse_listings(data)
 
-    # Also search foreclosures separately if requested
+    # Foreclosure pass
     if filters.get("include_foreclosures"):
         time.sleep(1)
-        params_fore = dict(params)
-        params_fore["status_type"] = "ForSale"
-        params_fore["isForeclosure"] = "true"
+        fore_params = dict(params)
+        fore_params["foreclosure"] = "true"
         try:
             resp2 = requests.get(
-                f"https://{RAPIDAPI_HOST}/propertyExtendedSearch",
+                f"https://{RAPIDAPI_HOST}/v3/for-sale",
                 headers=headers,
-                params=params_fore,
+                params=fore_params,
                 timeout=20,
             )
             resp2.raise_for_status()
             fore_listings = _parse_listings(resp2.json(), listing_type="Foreclosure")
-            # merge, avoiding duplicates
             seen_ids = {L["id"] for L in listings}
             for L in fore_listings:
                 if L["id"] not in seen_ids:
                     listings.append(L)
         except Exception as e:
-            print(f"  [Zillow] Foreclosure search error: {e}")
+            print(f"  [US Real Estate API] Foreclosure search error: {e}")
 
     return listings
 
 
 def _parse_listings(data, listing_type=None):
     listings = []
-    props = data.get("props", [])
-    if not props:
-        props = data.get("results", [])
 
-    for home in props:
-        zpid = home.get("zpid")
-        if not zpid:
+    # Response structure: data -> results -> list of properties
+    results = data.get("data", {}).get("results", [])
+    if not results:
+        results = data.get("results", [])
+
+    for home in results:
+        prop_id = home.get("property_id") or home.get("zpid")
+        if not prop_id:
             continue
 
-        price = home.get("price", 0)
+        listing = home.get("listing", home)
+        price = (
+            listing.get("list_price")
+            or listing.get("price")
+            or home.get("list_price", 0)
+        )
         if isinstance(price, str):
             try:
                 price = int(price.replace(",", "").replace("$", "").strip())
             except ValueError:
                 price = 0
 
-        detail_url = home.get("detailUrl", "")
-        if detail_url and not detail_url.startswith("http"):
-            detail_url = f"https://www.zillow.com{detail_url}"
+        desc = home.get("description", {})
+        beds  = desc.get("beds")  or home.get("beds",  0)
+        baths = desc.get("baths") or home.get("baths", 0)
+        sqft  = desc.get("sqft")  or home.get("sqft",  0)
+
+        loc = home.get("location", {}).get("address", {})
+        line  = loc.get("line",        home.get("address", ""))
+        city  = loc.get("city",        "")
+        state = loc.get("state_code",  "")
+        zip_  = loc.get("postal_code", "")
+        address = f"{line}, {city}, {state} {zip_}".strip(", ")
+
+        permalink = home.get("permalink") or home.get("slug_id", "")
+        url = (
+            f"https://www.realtor.com/realestateandhomes-detail/{permalink}"
+            if permalink else "#"
+        )
 
         entry = {
-            "id":      f"zillow_{zpid}",
+            "id":      f"usrealestate_{prop_id}",
             "price":   price,
-            "beds":    home.get("bedrooms", 0),
-            "baths":   home.get("bathrooms", 0),
-            "sqft":    home.get("livingArea", 0),
-            "address": home.get("address", ""),
-            "url":     detail_url,
-            "source":  "Zillow",
+            "beds":    beds,
+            "baths":   baths,
+            "sqft":    sqft,
+            "address": address,
+            "url":     url,
+            "source":  "Realtor.com",
         }
         if listing_type:
             entry["listing_type"] = listing_type
