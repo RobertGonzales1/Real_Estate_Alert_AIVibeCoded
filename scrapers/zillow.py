@@ -114,6 +114,7 @@ def _parse_listings(data, listing_type=None):
         beds  = desc.get("beds")  or home.get("beds",  0)
         baths = desc.get("baths") or home.get("baths", 0)
         sqft  = desc.get("sqft")  or home.get("sqft",  0)
+        prop_type = (desc.get("type") or home.get("prop_type") or "").lower()
 
         loc = (home.get("location") or {}).get("address") or {}
         line  = loc.get("line",        home.get("address", ""))
@@ -129,14 +130,15 @@ def _parse_listings(data, listing_type=None):
         )
 
         entry = {
-            "id":      f"usrealestate_{prop_id}",
-            "price":   price,
-            "beds":    beds,
-            "baths":   baths,
-            "sqft":    sqft,
-            "address": address,
-            "url":     url,
-            "source":  "Realtor.com",
+            "id":        f"usrealestate_{prop_id}",
+            "price":     price,
+            "beds":      beds,
+            "baths":     baths,
+            "sqft":      sqft,
+            "address":   address,
+            "url":       url,
+            "source":    "Realtor.com",
+            "prop_type": prop_type,
         }
         if listing_type:
             entry["listing_type"] = listing_type

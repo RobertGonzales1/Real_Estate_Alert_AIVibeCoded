@@ -29,13 +29,31 @@ def save_seen(seen):
     SEEN_FILE.write_text(json.dumps(sorted(seen), indent=2))
 
 
+# Property types that are acceptable (condo-adjacent)
+CONDO_TYPES = {
+    "condos", "condo", "condo_townhome", "condo_townhome_rowhome_coop",
+    "townhome", "townhomes", "co-op", "coop", "apartment",
+    # empty/unknown = don't reject (source didn't report type)
+    "",
+}
+
+# Property types that are definitely NOT condos — always reject these
+NON_CONDO_TYPES = {
+    "single_family", "single family", "houses", "house",
+    "land", "lot", "mobile", "manufactured", "multi_family",
+    "multi-family", "multifamily", "farm", "commercial",
+    "trailer", "mobile_home",
+}
+
+
 def matches_filters(listing, filters, search_city, search_state):
     """Hard client-side check — rejects anything the API let through that doesn't match."""
-    price  = listing.get("price", 0) or 0
-    beds   = listing.get("beds",  0) or 0
-    baths  = listing.get("baths", 0) or 0
-    sqft   = listing.get("sqft",  0) or 0
-    addr   = (listing.get("address") or "").upper()
+    price     = listing.get("price", 0) or 0
+    beds      = listing.get("beds",  0) or 0
+    baths     = listing.get("baths", 0) or 0
+    sqft      = listing.get("sqft",  0) or 0
+    addr      = (listing.get("address") or "").upper()
+    prop_type = (listing.get("prop_type") or "").lower().strip()
 
     # Price must be > 0 and within budget
     if price <= 0 or price > filters["max_price"]:
@@ -49,8 +67,10 @@ def matches_filters(listing, filters, search_city, search_state):
     if sqft > 0 and filters.get("min_sqft") and sqft < filters["min_sqft"]:
         return False
     # Address must contain the correct state abbreviation
-    state_upper = search_state.upper()
-    if state_upper not in addr:
+    if search_state.upper() not in addr:
+        return False
+    # Property type — reject known non-condo types
+    if prop_type in NON_CONDO_TYPES:
         return False
 
     return True
