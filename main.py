@@ -66,15 +66,9 @@ def run_search(search_config, filters):
 
     found = []
 
-    print(f"  [Redfin] Searching {area_label}...")
-    try:
-        listings = redfin.search(city, state, lat, lng, radius, filters)
-        print(f"  [Redfin] {len(listings)} listings returned.")
-        for L in listings:
-            L["search_area"] = area_label
-        found.extend(listings)
-    except Exception as e:
-        print(f"  [Redfin] ERROR: {e}")
+    # Redfin disabled — GitHub Actions servers are in Oregon and Redfin ignores
+    # the region_id parameter from datacenter IPs, returning local (wrong) results.
+    print(f"  [Redfin] Skipped — not reliable from cloud runners.")
 
     print(f"  [Zillow] Searching {area_label}...")
     try:

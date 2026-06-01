@@ -110,7 +110,7 @@ def _parse_listings(data, listing_type=None):
             except ValueError:
                 price = 0
 
-        desc = home.get("description", {})
+        desc  = home.get("description") or {}
         beds  = desc.get("beds")  or home.get("beds",  0)
         baths = desc.get("baths") or home.get("baths", 0)
         sqft  = desc.get("sqft")  or home.get("sqft",  0)

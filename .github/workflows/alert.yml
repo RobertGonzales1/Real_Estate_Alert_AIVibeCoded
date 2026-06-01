@@ -5,6 +5,9 @@ on:
     - cron: "0 */8 * * *"   # 3x/day × 2 cities = ~180 calls/month (limit: 300)
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   check-listings:
     runs-on: ubuntu-latest
